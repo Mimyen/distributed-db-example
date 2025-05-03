@@ -1,0 +1,44 @@
+version: "3.8"
+
+services:
+  web:
+    build: .
+    container_name: fastapi-app-template
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/postgres
+    volumes:
+      - ./app:/app/app
+    # command: >
+    #   sh -c "fastapi dev app/main.py --proxy-headers --host 0.0.0.0 --port 8000"
+    command: >
+      sh -c "python server.py --dev"
+    env_file:
+      - ./.env
+
+  db:
+    image: postgres:13
+    container_name: postgres-db-template
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # pgadmin:
+  #   image: dpage/pgadmin4
+  #   restart: always
+  #   ports:
+  #     - "8888:80"
+  #   volumes:
+  #     - pgadmin-data:/var/lib/pgadmin
+  #   env_file:
+  #     - ./.env
+
+volumes:
+  postgres_data:
+  # pgadmin-data:
