@@ -10,6 +10,8 @@ from app.database import engine
 from pydantic import BaseModel
 from uuid import uuid4
 import subprocess
+from faker import Faker
+fake = Faker()
 
 router = APIRouter(
     prefix="/develop",
@@ -172,8 +174,66 @@ async def run_sql_script(
     query: Annotated[str, Form()],
     db: Annotated[Session, Depends(DBSessionProvider)]
 ):
-
     result = db.execute(text(f"{query}"))
     db.commit()
 
-    return {"result": result}
+    try:
+        columns = result.keys()
+        rows = result.fetchall()
+
+        # Ręcznie konwertuj każdy rząd do słownika z wartościami jako string
+        output = []
+        for row in rows:
+            row_dict = {}
+            for idx, col in enumerate(columns):
+                val = row[idx]
+                # Jeśli coś jest bajtami, zrób hex albo utf-8 fallback
+                if isinstance(val, (bytes, memoryview)):
+                    try:
+                        val = bytes(val).decode("utf-8")
+                    except UnicodeDecodeError:
+                        val = bytes(val).hex()
+                elif isinstance(val, list):
+                    val = [str(v) for v in val]
+                else:
+                    val = str(val)
+                row_dict[col] = val
+            output.append(row_dict)
+
+        return {"result": output}
+
+    except Exception:
+        return {"status": "OK"}
+
+
+
+
+@router.post(
+    "/register/test-users/{amount}",
+    status_code=status.HTTP_201_CREATED,
+    response_model=DefaultResponseModel
+)
+async def register_test_users(
+    amount: int,
+    db: Annotated[Session, Depends(DBSessionProvider)]
+) -> DefaultResponseModel:
+    from app.domain.user.schemas import UserCreate
+    from app.domain.user.service import create_user, get_user_by_email
+    from app.dependencies import validate_password  # jeśli masz to rozdzielone
+
+    users_created = 0
+
+    for _ in range(amount):
+        email = fake.unique.email()
+        password = fake.password(length=12, special_chars=True, digits=True, upper_case=True, lower_case=True)
+
+        try:
+            validate_password(password)
+            if not get_user_by_email(db, email):
+                user = UserCreate(email=email, password=password)
+                create_user(db, user)
+                users_created += 1
+        except Exception:
+            continue  # ignorujemy błędy walidacji lub duplikaty
+
+    return {"message": f"Successfully created {users_created} test users."}

@@ -7,7 +7,9 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - db
+      - cockroachdb-1
+      - cockroachdb-2
+      - cockroachdb-3
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/postgres
     volumes:
@@ -19,15 +21,29 @@ services:
     env_file:
       - ./.env
 
-  db:
-    image: postgres:13
-    container_name: postgres-db-template
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: postgres
+  cockroachdb-1:
+    image: cockroachdb/cockroach:v24.1.0
+    container_name: cockroachdb-1
+    command: start --insecure --join=cockroachdb-1,cockroachdb-2,cockroachdb-3
+    ports:
+      - "26257:26257"
+      - "8080:8080"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - cockroach-data-1:/cockroach/cockroach-data
+
+  cockroachdb-2:
+    image: cockroachdb/cockroach:v24.1.0
+    container_name: cockroachdb-2
+    command: start --insecure --join=cockroachdb-1,cockroachdb-2,cockroachdb-3
+    volumes:
+      - cockroach-data-2:/cockroach/cockroach-data
+
+  cockroachdb-3:
+    image: cockroachdb/cockroach:v24.1.0
+    container_name: cockroachdb-3
+    command: start --insecure --join=cockroachdb-1,cockroachdb-2,cockroachdb-3
+    volumes:
+      - cockroach-data-3:/cockroach/cockroach-data
 
   # pgadmin:
   #   image: dpage/pgadmin4
@@ -40,5 +56,7 @@ services:
   #     - ./.env
 
 volumes:
-  postgres_data:
+  cockroach-data-1:
+  cockroach-data-2:
+  cockroach-data-3:
   # pgadmin-data:
